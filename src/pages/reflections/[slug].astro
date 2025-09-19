@@ -1,0 +1,23 @@
+---
+import ReflectionLayout from '../../layouts/ReflectionLayout.astro';
+import { getCollection, getEntry, type CollectionEntry } from 'astro:content';
+
+// Alle Seitenpfade aus der Collection generieren
+export async function getStaticPaths() {
+  const entries = await getCollection('reflections');
+  return entries.map((e) => ({ params: { slug: e.slug } }));
+}
+
+const { slug } = Astro.params;
+if (!slug) throw new Error('Missing slug param');
+
+// getEntry statt getEntryBySlug verwenden, mit typisierter slug
+const entry = await getEntry(
+  'reflections',
+  slug as CollectionEntry<'reflections'>['slug']
+);
+if (!entry) throw new Error(`Reflection "${slug}" not found.`);
+
+const { data } = entry;
+---
+<ReflectionLayout frontmatter={data} />

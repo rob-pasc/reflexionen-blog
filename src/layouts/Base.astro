@@ -1,0 +1,25 @@
+---
+import "../styles/chat.css";
+const { title, noIndex = false } = Astro.props;
+---
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title ? `${title} · Reflections` : 'Reflections'}</title>
+    {noIndex && <meta name="robots" content="noindex,nofollow" />}
+    <!-- <link rel="stylesheet" href={`${import.meta.env.BASE_URL}styles/chat.css`} /> -->
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/">Reflections</a>
+    </header>
+    <main class="container">
+      <slot />
+    </main>
+    <footer class="site-footer">
+      <small>Innovation Methods · {new Date().getFullYear()}</small>
+    </footer>
+  </body>
+</html>

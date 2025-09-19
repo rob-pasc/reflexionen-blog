@@ -1,0 +1,23 @@
+---
+import Base from './Base.astro';
+import { marked } from 'marked';
+const { frontmatter } = Astro.props; // { title, qas: [{q,a}] }
+---
+<Base title={frontmatter.title}>
+  <article class="chat-thread" aria-label="Reflexions-Chatverlauf">
+    <h1 class="page-title">{frontmatter.title}</h1>
+
+    {frontmatter.qas.map((item: { q: unknown; a: any; }, i: number) => (
+      <section class="turn" aria-label={`Frage ${i+1}`}>
+        <div class="bubble bubble--q" role="note">
+          <div class="bubble-meta">Frage {i+1}</div>
+          <p>{item.q}</p>
+        </div>
+        <div class="bubble bubble--a" role="article" aria-label="Meine Reflexion">
+            <div class="bubble-meta">Meine Reflexion</div>
+            <div set:html={marked(item.a)}></div>
+        </div>
+      </section>
+    ))}
+  </article>
+</Base>

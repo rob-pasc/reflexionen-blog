@@ -1,0 +1,17 @@
+---
+import Base from '../layouts/Base.astro';
+import { getCollection } from 'astro:content';
+
+const reflections = (await getCollection('reflections'))
+  .sort((a, b) => a.data.order - b.data.order);
+---
+<Base title="Overview" noIndex={true /* optional, if you don't want it indexed */}>
+  <h1 class="page-title">Overview</h1>
+  <ul>
+    {reflections.map(r => (
+      <li>
+        <a href={`/reflections/${r.slug}/`}>{r.data.title}</a>
+      </li>
+    ))}
+  </ul>
+</Base>
