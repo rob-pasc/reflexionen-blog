@@ -10,7 +10,7 @@ const reflections = (await getCollection('reflections'))
   <ul>
     {reflections.map(r => (
       <li>
-        <a href={`${import.meta.env.BASE_URL}reflections/${r.slug}/`}>{r.data.title}</a>
+	  	<a href={`/reflections/${r.slug}/`}>{r.data.title}</a>
       </li>
     ))}
   </ul>
