@@ -90,60 +90,139 @@ const titles = reflections.map(r => r.data.title);
       const game = new Phaser.Game(config);
 
       let cursors, player, platforms, mirrors;
+      const assetPath = (path) => encodeURI(`${base}assets/sprites/PNG/${path}`);
 
       function preload() {
-        // generate simple textures
-        const g = this.add.graphics();
-        g.fillStyle(0x33ddff, 1).fillRect(0,0,24,24).generateTexture('player', 24, 24).clear();
-        g.fillStyle(0x4c5365, 1).fillRect(0,0,64,16).generateTexture('platform', 64, 16).clear();
-        g.fillStyle(0xc6b8ff, 1).fillRect(0,0,18,26).generateTexture('mirror', 18, 26).destroy();
+        this.load.image('bg', assetPath('Backgrounds/colored_grass.png'));
+        this.load.image('ground_mid', assetPath('Ground/Grass/grassMid.png'));
+        this.load.image('ground_left', assetPath('Ground/Grass/grassLeft.png'));
+        this.load.image('ground_right', assetPath('Ground/Grass/grassRight.png'));
+        this.load.image('ground_half', assetPath('Ground/Grass/grassHalf_mid.png'));
+        this.load.image('decor_bush', assetPath('Tiles/bush.png'));
+        this.load.image('decor_mushroom', assetPath('Tiles/mushroomRed.png'));
+        this.load.image('player_idle', assetPath('Players/Variable sizes/Blue/alienBlue_stand.png'));
+        this.load.image('player_walk1', assetPath('Players/Variable sizes/Blue/alienBlue_walk1.png'));
+        this.load.image('player_walk2', assetPath('Players/Variable sizes/Blue/alienBlue_walk2.png'));
+        this.load.image('player_jump', assetPath('Players/Variable sizes/Blue/alienBlue_jump.png'));
+        this.load.image('mirror', assetPath('Items/gemBlue.png'));
       }
 
       function create() {
-        // ground & platforms
-        platforms = this.physics.add.staticGroup();
-        for (let x = 0; x < W; x += 64) platforms.create(x, H - 24, 'platform').setOrigin(0,0).refreshBody();
-        platforms.create(150, 420, 'platform').setOrigin(0,0).refreshBody();
-        platforms.create(360, 340, 'platform').setOrigin(0,0).refreshBody();
-        platforms.create(620, 280, 'platform').setOrigin(0,0).refreshBody();
-        platforms.create(780, 200, 'platform').setOrigin(0,0).refreshBody();
+        this.add.image(W / 2, H / 2, 'bg').setDisplaySize(W, H).setDepth(-5);
 
-        // player
-        player = this.physics.add.sprite(60, H - 80, 'player');
-        player.setBounce(0.05).setCollideWorldBounds(true);
+        platforms = this.physics.add.staticGroup();
+        const tileSpacing = 70;
+        const buildTile = (x, y, key = 'ground_mid') => {
+          const tile = platforms.create(x, y, key);
+          tile.setOrigin(0.5, 1).refreshBody();
+          return tile;
+        };
+
+        const totalTiles = Math.ceil(W / tileSpacing) + 2;
+        for (let i = 0; i < totalTiles; i++) {
+          const x = i * tileSpacing - tileSpacing / 2;
+          buildTile(x, H, i === 0 ? 'ground_left' : i === totalTiles - 1 ? 'ground_right' : 'ground_mid');
+        }
+
+        const platformLayouts = [
+          { x: 180, y: H - 110, tiles: 3 },
+          { x: 360, y: H - 180, tiles: 2 },
+          { x: 520, y: H - 240, tiles: 3 },
+          { x: 720, y: H - 300, tiles: 2 },
+          { x: 880, y: H - 180, tiles: 3 },
+          { x: 640, y: H - 140, tiles: 2 },
+          { x: 320, y: H - 270, tiles: 2 },
+          { x: 460, y: H - 330, tiles: 2 },
+          { x: 780, y: H - 380, tiles: 3 }
+        ];
+
+        const buildPlatform = ({ x, y, tiles }) => {
+          const startX = x;
+          for (let i = 0; i < tiles; i++) {
+            buildTile(startX + i * tileSpacing, y, 'ground_half');
+          }
+        };
+        platformLayouts.forEach(buildPlatform);
+
+        this.add.image(160, H - 80, 'decor_bush').setOrigin(0.5, 1).setScale(1.1).setDepth(-1);
+        this.add.image(520, H - 90, 'decor_mushroom').setOrigin(0.5, 1).setScale(1).setDepth(-1);
+        this.add.image(820, H - 80, 'decor_bush').setOrigin(0.5, 1).setScale(0.9).setDepth(-1);
+
+        player = this.physics.add.sprite(80, H - 200, 'player_idle');
+        player.setScale(0.6);
+        player.setBounce(0.1).setCollideWorldBounds(true).setDepth(5);
+        player.body.setSize(player.displayWidth * 0.45, player.displayHeight * 0.9);
+        player.body.setOffset(player.displayWidth * 0.27, player.displayHeight * 0.1);
         this.physics.add.collider(player, platforms);
 
-        // mirrors: one per reflection entry
-        mirrors = this.physics.add.staticGroup();
-        const points = slugs.map((_, i) => {
-          // simple layout: staggered platforms → tweak as you like
-          const x = 160 + i * 140;
-          const y = (i % 4 === 0) ? 400 : (i % 4 === 1) ? 320 : (i % 4 === 2) ? 260 : 180;
-          return { x, y, slug: slugs[i] };
-        });
-        points.forEach(p => {
-          const m = mirrors.create(p.x, p.y, 'mirror').setOrigin(.5,1);
-          m.setData('slug', p.slug);
+        this.anims.create({ key: 'idle', frames: [{ key: 'player_idle' }], frameRate: 1, repeat: -1 });
+        this.anims.create({ key: 'run', frames: [{ key: 'player_walk1' }, { key: 'player_walk2' }], frameRate: 8, repeat: -1 });
+        this.anims.create({ key: 'jump', frames: [{ key: 'player_jump' }], frameRate: 1, repeat: -1 });
+        player.anims.play('idle');
+
+        mirrors = this.physics.add.group({ allowGravity: false });
+        const tiers = [
+          { y: H - 170, startX: 180, step: 120, count: 5 },
+          { y: H - 250, startX: 260, step: 150, count: 4 },
+          { y: H - 330, startX: 340, step: 150, count: 4 },
+          { y: H - 410, startX: 480, step: 160, count: 3 }
+        ];
+        const spawnPoints = [];
+        tiers.forEach(({ y, startX, step, count }) => {
+          for (let i = 0; i < count; i++) spawnPoints.push({ x: startX + i * step, y });
         });
 
-        // pick up → unlock link
+        slugs.forEach((slug, idx) => {
+          const point = spawnPoints[idx] ?? { x: 160 + idx * 60, y: H - 170 - (idx % 3) * 60 };
+          const gem = mirrors.create(point.x, point.y, 'mirror');
+          gem.setOrigin(0.5, 1).setScale(0.8);
+          gem.body.setSize(gem.displayWidth * 0.6, gem.displayHeight * 0.6);
+          gem.setData('slug', slug);
+        });
+
+        this.tweens.add({
+          targets: mirrors.getChildren(),
+          y: '+=10',
+          duration: 1600,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut'
+        });
+
         this.physics.add.overlap(player, mirrors, (_pl, m) => {
           const slug = m.getData('slug');
           unlock(slug);
           m.destroy();
         });
 
-        // input
         cursors = this.input.keyboard.createCursorKeys();
       }
 
       function update() {
-        const speed = 220;
-        if (cursors.left.isDown)       player.setVelocityX(-speed);
-        else if (cursors.right.isDown) player.setVelocityX(speed);
-        else                           player.setVelocityX(0);
+        const speed = 240;
+        const onGround = player.body.blocked.down;
 
-        if (cursors.up.isDown && player.body.blocked.down) player.setVelocityY(-480);
+        if (cursors.left.isDown) {
+          player.setVelocityX(-speed);
+          player.setFlipX(true);
+        } else if (cursors.right.isDown) {
+          player.setVelocityX(speed);
+          player.setFlipX(false);
+        } else {
+          player.setVelocityX(0);
+        }
+
+        if (cursors.up.isDown && onGround) {
+          player.setVelocityY(-520);
+        }
+
+        if (!onGround) {
+          player.anims.play('jump', true);
+        } else if (Math.abs(player.body.velocity.x) > 10) {
+          player.anims.play('run', true);
+        } else {
+          player.anims.play('idle', true);
+        }
       }
     }
   </script>
