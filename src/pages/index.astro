@@ -2,18 +2,149 @@
 import Base from '../layouts/Base.astro';
 import { getCollection } from 'astro:content';
 
-const reflections = (await getCollection('reflections'))
-  .sort((a, b) => a.data.order - b.data.order);
+// collection name stays "reflections" as in your repo
+const reflections = (await getCollection('reflections')).sort((a, b) => a.data.order - b.data.order);
+
+// build-safe base path for GitHub Pages (user page → '/', project page → '/<repo>/')
 const rawBase = import.meta.env.BASE_URL ?? Astro.site?.pathname ?? '/';
 const base = rawBase.endsWith('/') ? rawBase : `${rawBase}/`;
+
+// data to expose to the client script
+const slugs = reflections.map(r => r.slug);
+const titles = reflections.map(r => r.data.title);
 ---
-<Base title="Overview" noIndex={true /* optional, if you don't want it indexed */}>
-  <h1 class="page-title">Overview</h1>
-  <ul>
-    {reflections.map(r => (
-      <li>
-        <a href={`${base}reflections/${r.slug}/`}>{r.data.title}</a>
-      </li>
-    ))}
-  </ul>
+<Base title="Reflexions-Run" noIndex={true}>
+  <style>
+    .wrap{max-width:1000px;margin:1.5rem auto;padding:0 1rem}
+    .hint{color:#a9acb6;margin:.25rem 0 1rem}
+    #game{display:block;margin:0 auto;border:1px solid #222;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.4)}
+    .unlock-head{margin:1.6rem 0 .4rem}
+    .locked{display:none}
+  </style>
+
+  <div class="wrap">
+    <h1 class="page-title">Reflexions-Run</h1>
+    <p class="hint">Steuerung: ← → bewegen, ↑ springen. Sammle die <b>Spiegel</b>, um Links zu den Reflexionen freizuschalten.</p>
+
+    <!-- Game canvas -->
+    <canvas id="game" width="960" height="540"></canvas>
+
+    <!-- Unlocked links are your existing list; they start hidden (display:none) and get revealed -->
+    <h3 class="unlock-head">Freigeschaltete Reflexionen</h3>
+    <ul id="refList">
+      {reflections.map((r) => (
+        <li data-slug={r.slug} class="locked">
+          <a href={`${base}reflections/${r.slug}/`} target="_blank" rel="noopener">{r.data.title}</a>
+        </li>
+      ))}
+    </ul>
+  </div>
+
+  <!-- Phaser UMD (global) -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+
+  <!-- Game + unlock logic -->
+  <script type="module" define:vars={{ slugs, titles, base }}>
+    // ---- helpers: localStorage unlocking ----
+    const LS_KEY = 'unlockedLinks';
+    function getUnlocked() {
+      try { return new Set(JSON.parse(localStorage.getItem(LS_KEY) || '[]')); }
+      catch { return new Set(); }
+    }
+    function setUnlocked(set) {
+      localStorage.setItem(LS_KEY, JSON.stringify([...set]));
+    }
+    function unlock(slug) {
+      const set = getUnlocked();
+      if (!set.has(slug)) {
+        set.add(slug);
+        setUnlocked(set);
+        revealBySlug(slug);
+      }
+    }
+    function revealAllFromStorage() {
+      const set = getUnlocked();
+      set.forEach(revealBySlug);
+    }
+    function revealBySlug(slug) {
+      const li = document.querySelector(`#refList li[data-slug="${slug}"]`);
+      if (li) li.classList.remove('locked');
+    }
+
+    // reveal any previously unlocked links
+    revealAllFromStorage();
+
+    // ---- mini game ----
+    // Guard: Phaser must be available globally from the UMD build
+    if (!window.Phaser) {
+      console.error('Phaser not found on window. Check the <script src> above.');
+    } else {
+      const W = 960, H = 540;
+      const config = {
+        type: Phaser.WEBGL,      // explicit render type fixes custom env warning
+        width: W, height: H,
+        canvas: document.getElementById('game'),
+        physics: { default: 'arcade', arcade: { gravity: { y: 1200 }, debug: false } },
+        scene: { preload, create, update }
+      };
+      const game = new Phaser.Game(config);
+
+      let cursors, player, platforms, mirrors;
+
+      function preload() {
+        // generate simple textures
+        const g = this.add.graphics();
+        g.fillStyle(0x33ddff, 1).fillRect(0,0,24,24).generateTexture('player', 24, 24).clear();
+        g.fillStyle(0x4c5365, 1).fillRect(0,0,64,16).generateTexture('platform', 64, 16).clear();
+        g.fillStyle(0xc6b8ff, 1).fillRect(0,0,18,26).generateTexture('mirror', 18, 26).destroy();
+      }
+
+      function create() {
+        // ground & platforms
+        platforms = this.physics.add.staticGroup();
+        for (let x = 0; x < W; x += 64) platforms.create(x, H - 24, 'platform').setOrigin(0,0).refreshBody();
+        platforms.create(150, 420, 'platform').setOrigin(0,0).refreshBody();
+        platforms.create(360, 340, 'platform').setOrigin(0,0).refreshBody();
+        platforms.create(620, 280, 'platform').setOrigin(0,0).refreshBody();
+        platforms.create(780, 200, 'platform').setOrigin(0,0).refreshBody();
+
+        // player
+        player = this.physics.add.sprite(60, H - 80, 'player');
+        player.setBounce(0.05).setCollideWorldBounds(true);
+        this.physics.add.collider(player, platforms);
+
+        // mirrors: one per reflection entry
+        mirrors = this.physics.add.staticGroup();
+        const points = slugs.map((_, i) => {
+          // simple layout: staggered platforms → tweak as you like
+          const x = 160 + i * 140;
+          const y = (i % 4 === 0) ? 400 : (i % 4 === 1) ? 320 : (i % 4 === 2) ? 260 : 180;
+          return { x, y, slug: slugs[i] };
+        });
+        points.forEach(p => {
+          const m = mirrors.create(p.x, p.y, 'mirror').setOrigin(.5,1);
+          m.setData('slug', p.slug);
+        });
+
+        // pick up → unlock link
+        this.physics.add.overlap(player, mirrors, (_pl, m) => {
+          const slug = m.getData('slug');
+          unlock(slug);
+          m.destroy();
+        });
+
+        // input
+        cursors = this.input.keyboard.createCursorKeys();
+      }
+
+      function update() {
+        const speed = 220;
+        if (cursors.left.isDown)       player.setVelocityX(-speed);
+        else if (cursors.right.isDown) player.setVelocityX(speed);
+        else                           player.setVelocityX(0);
+
+        if (cursors.up.isDown && player.body.blocked.down) player.setVelocityY(-480);
+      }
+    }
+  </script>
 </Base>
