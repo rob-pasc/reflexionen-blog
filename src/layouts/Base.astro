@@ -11,7 +11,6 @@ const { title, noIndex = false } = Astro.props;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title ? `${title} · Reflections` : 'Reflections'}</title>
     {noIndex && <meta name="robots" content="noindex,nofollow" />}
-    <!-- <link rel="stylesheet" href={`${import.meta.env.BASE_URL}styles/chat.css`} /> -->
   </head>
   <body>
     <header class="site-header">
