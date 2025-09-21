@@ -45,17 +45,13 @@ const pageTitle = "Reflexions-Run – Sammle die Spiegel";
       </section>
     </div>
 
-    <!-- Phaser von CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
-
     <!-- Phaser als ES-Modul laden und erst nach DOM-Load starten -->
     <script type="module">
-//   import Phaser from 'https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.esm.js';
-
   // Hilfsfunktion für GitHub Pages (Project Pages mit `base`)
-  const BASE = import.meta.env.BASE_URL || '/';
+  const BASE = (import.meta.env && import.meta.env.BASE_URL) ? import.meta.env.BASE_URL : '/';
 
   window.addEventListener('DOMContentLoaded', async () => {
+    const { default: Phaser } = await import('https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.esm.js');
     // Content laden
     const data = await fetch(`${BASE}reflections.json`).then(r => r.json());
     const entries = data.entries;
